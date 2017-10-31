@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/aquiladev/btcd/data"
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -167,6 +168,8 @@ type SyncManager struct {
 	headerList       *list.List
 	startHeader      *list.Element
 	nextCheckpoint   *chaincfg.Checkpoint
+
+	balanceRepo data.IBalanceRepository
 }
 
 // resetHeaderState sets the headers-first mode state to values appropriate for
@@ -1404,6 +1407,13 @@ func (sm *SyncManager) Pause() chan<- struct{} {
 // New constructs a new SyncManager. Use Start to begin processing asynchronous
 // block, tx, and inv updates.
 func New(config *Config) (*SyncManager, error) {
+	//tableRepo := data.NewAzureStorageTableRepository("devstoreaccount1", "")
+	//balanceRepo, err := data.NewAzureBalanceRepository(tableRepo, "balance")
+	balanceRepo, err := data.NewDynamoBalanceRepository("123", "123", "balance")
+	if err != nil {
+		panic(err)
+	}
+
 	sm := SyncManager{
 		peerNotifier:    config.PeerNotifier,
 		chain:           config.Chain,
@@ -1417,6 +1427,7 @@ func New(config *Config) (*SyncManager, error) {
 		msgChan:         make(chan interface{}, config.MaxPeers*3),
 		headerList:      list.New(),
 		quit:            make(chan struct{}),
+		balanceRepo:     balanceRepo,
 	}
 
 	best := sm.chain.BestSnapshot()
