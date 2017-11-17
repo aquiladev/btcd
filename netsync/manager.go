@@ -1409,7 +1409,8 @@ func (sm *SyncManager) Pause() chan<- struct{} {
 func New(config *Config) (*SyncManager, error) {
 	//tableRepo := data.NewAzureStorageTableRepository("devstoreaccount1", "")
 	//balanceRepo, err := data.NewAzureBalanceRepository(tableRepo, "balance")
-	balanceRepo, err := data.NewDynamoBalanceRepository("123", "123", "balance")
+	//balanceRepo, err := data.NewDynamoBalanceRepository("123", "123", "balance")
+	balanceRepo, err := data.NewLevelDbBalanceRepository("D:\\LevelDB")
 	if err != nil {
 		panic(err)
 	}
