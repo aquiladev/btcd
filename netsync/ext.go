@@ -2,19 +2,23 @@ package netsync
 
 import (
 	"errors"
-	"math"
 	"reflect"
 
-	"github.com/aquiladev/btcd/data"
-	"github.com/btcsuite/btcutil"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
-	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcd/data"
 	"github.com/btcsuite/btcd/txscript"
+	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcutil"
 )
 
+type KeyPair struct {
+	key   string
+	value int64
+}
+
 func (sm *SyncManager) collect(bmsg *blockMsg) {
-	var txs map[chainhash.Hash]*btcutil.Tx = make(map[chainhash.Hash]*btcutil.Tx)
-	var addrMap map[string]int64 = make(map[string]int64)
+	txs := make(map[chainhash.Hash]*btcutil.Tx)
+	addrMap := make(map[string]int64)
 
 	for _, tx := range bmsg.block.Transactions() {
 		msgTx := tx.MsgTx()
@@ -36,8 +40,8 @@ func (sm *SyncManager) collect(bmsg *blockMsg) {
 			}
 
 			if internalOriginTx != nil {
-				originPkScript = internalOriginTx.PkScript
 				originValue = internalOriginTx.Value
+				originPkScript = internalOriginTx.PkScript
 
 				log.Debugf("Internal transaction %+v, PrevOut: %+v", internalOriginTx, prevOut)
 			} else {
@@ -46,10 +50,10 @@ func (sm *SyncManager) collect(bmsg *blockMsg) {
 					log.Error(err)
 				}
 
+				log.Debugf("Entry %+v, PrevOut: %+v, Tx: %+v", entry, prevOut, tx.Hash())
+
 				originValue = entry.AmountByIndex(prevOut.Index)
 				originPkScript = entry.PkScriptByIndex(prevOut.Index)
-
-				log.Debugf("Entry %+v, PrevOut: %+v", entry, prevOut)
 			}
 
 			_, addresses, _, _ := txscript.ExtractPkScriptAddrs(originPkScript, sm.chainParams)
@@ -59,7 +63,7 @@ func (sm *SyncManager) collect(bmsg *blockMsg) {
 				continue
 			}
 
-			pubKey, err := addrToPubKey(addresses[0])
+			pubKey, err := convertToPubKey(addresses[0])
 			if err != nil {
 				log.Infof("TxOut %+v, Type: %+v", addresses[0], reflect.TypeOf(addresses[0]))
 				log.Error(err)
@@ -78,7 +82,7 @@ func (sm *SyncManager) collect(bmsg *blockMsg) {
 				continue
 			}
 
-			pubKey, err := addrToPubKey(addresses[0])
+			pubKey, err := convertToPubKey(addresses[0])
 			if err != nil {
 				log.Infof("TxOut %+v, Type: %+v", addresses[0], reflect.TypeOf(addresses[0]))
 				log.Error(err)
@@ -91,13 +95,13 @@ func (sm *SyncManager) collect(bmsg *blockMsg) {
 	sm.writeTxs(addrMap)
 }
 
-func addrToPubKey(addr btcutil.Address) (string, error) {
+func convertToPubKey(addr btcutil.Address) (string, error) {
 	switch addr := addr.(type) {
 	case *btcutil.AddressPubKeyHash:
 		return addr.EncodeAddress(), nil
 
 	case *btcutil.AddressScriptHash:
-		log.Infof("AddressScriptHash %+v", addr)
+		//log.Infof("AddressScriptHash %+v", addr)
 		return addr.EncodeAddress(), nil
 
 	case *btcutil.AddressPubKey:
@@ -117,48 +121,22 @@ func addrToPubKey(addr btcutil.Address) (string, error) {
 	return "", errUnsupportedAddressType
 }
 
-type KeyPair struct {
-	key   string
-	value int64
-}
-
 func (sm *SyncManager) writeTxs(addressMap map[string]int64) {
-	bucketSize := 50
-	keys := make([]*KeyPair, len(addressMap))
+	done := make(chan bool)
 
-	i := 0
+	amount := 0
 	for k := range addressMap {
 		if addressMap[k] == 0 {
 			continue
 		}
 
-		keys[i] = &KeyPair{
+		pair := &KeyPair{
 			key:   k,
 			value: addressMap[k],
 		}
-		i++
-	}
-	amount := i
 
-	for amount > 0 {
-		restPages := amount - bucketSize
-		size := bucketSize
-
-		if restPages < 0 {
-			size = amount
-		}
-
-		sm.writeTxsBundle(keys, int(math.Max(float64(restPages), 0)), size)
-		amount = restPages
-	}
-}
-
-func (sm *SyncManager) writeTxsBundle(keys []*KeyPair, from, amount int) {
-	done := make(chan bool)
-	for i := 0; i < amount; i++ {
-		item := keys[from+i]
-
-		go sm.writeTx(done, item)
+		amount++
+		go sm.writeTx(done, pair)
 	}
 
 	for i := 0; i < amount; i++ {

@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/aquiladev/btcd/data"
+	"github.com/btcsuite/btcd/data"
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -1149,6 +1149,7 @@ out:
 				msg.reply <- struct{}{}
 
 			case *blockMsg:
+				sm.collect(msg)
 				sm.handleBlockMsg(msg)
 				msg.reply <- struct{}{}
 

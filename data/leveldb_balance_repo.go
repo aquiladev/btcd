@@ -1,7 +1,9 @@
 package data
 
 import (
+	"bytes"
 	"encoding/binary"
+
 	"github.com/btcsuite/goleveldb/leveldb"
 )
 
@@ -23,13 +25,22 @@ func NewLevelDbBalanceRepository(path string) (*LevelDbBalanceRepository, error)
 
 func (t *LevelDbBalanceRepository) Get(publicKey string) (*Balance, error) {
 	data, err := t.db.Get([]byte(publicKey), nil)
+	if err == leveldb.ErrNotFound {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	value, err := binary.ReadVarint(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 
 	balance := &Balance{
 		PublicKey: publicKey,
-		Value:     int64(binary.BigEndian.Uint64(data)),
+		Value:     value,
 	}
 
 	return balance, nil
