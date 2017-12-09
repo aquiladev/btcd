@@ -1149,8 +1149,8 @@ out:
 				msg.reply <- struct{}{}
 
 			case *blockMsg:
-				sm.collect(msg)
 				sm.handleBlockMsg(msg)
+				//sm.explore(msg)
 				msg.reply <- struct{}{}
 
 			case *invMsg:

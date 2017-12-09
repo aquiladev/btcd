@@ -19,7 +19,7 @@ func TestWriteTx(t *testing.T) {
 	}
 
 	done := make(chan bool)
-	go sm.writeTx(done, &KeyPair{
+	go sm.writeTx(done, &keyValue{
 		key:   "1",
 		value: 1,
 	})
